@@ -203,7 +203,7 @@ impl Emu {
             (sz, result_ok)
         }
     }
-    
+
     /// Advance the program counter by `sz` bytes.
     /// Respects force_reload (branch already set PC).
     /// Dispatches to RIP, EIP, or PC based on architecture.
@@ -489,15 +489,21 @@ impl Emu {
             return false;
         }
 
-        // Decode and execute (arch-dispatched) & process pre/post instruction hooks
-        // the hook will return (ins_size, true) if user skipped instruction
+        // Decode and execute (arch-dispatched)
         let (sz, result_ok) = self.decode_and_execute();
         if sz == 0 {
             return false;
         }
 
+        // Post-instruction hook
+        if let Some(mut hook_fn) = self.hooks.hook_on_post_instruction.take() {
+            let pc = self.pc();
+            let decoded = self.last_decoded.unwrap();
+            hook_fn(self, pc, &decoded, sz, result_ok);
+            self.hooks.hook_on_post_instruction = Some(hook_fn);
+        }
+
         // Advance PC
-        // Add a warning to users who wanna set the pc through a pre-instruction hook that they need to do emu.set_pc(emu.get_pc() - sz)
         self.advance_pc(sz);
 
         result_ok
